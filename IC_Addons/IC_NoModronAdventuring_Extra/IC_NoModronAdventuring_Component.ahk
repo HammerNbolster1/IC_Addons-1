@@ -5,7 +5,6 @@ GUIFunctions.AddTab("No Modron Adventuring")
 global g_NMAHeroDefines
 global g_NMAChampsToLevel := {}
 global g_NMAPickedSpecs := {}
-global g_NMALastChampLvl := {}
 global g_NMAResetZone := 500
 global g_NMAWallTime := 300000 ; 5 minutes
 global g_NMAAlertZone := 201
