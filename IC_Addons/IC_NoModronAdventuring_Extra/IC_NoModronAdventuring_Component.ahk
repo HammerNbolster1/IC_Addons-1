@@ -109,7 +109,7 @@ NMA_RunAdventuring()
     g_NMAChampsToLevel := g_NMAlvlObj.NMA_GetChampionsToLevel(formationKey)
     g_SF.PatronID := 0
     g_ServerCall.activePatronID := 0
-    startTime := A_TickCount
+    startTime := IC_NMA_Functions.GetTickCount()
     g_NMATimeAtWall := 0
     g_NMAHighestZone := 1
     g_NMAWallTime := NMA_WallTimer
@@ -170,10 +170,10 @@ NMA_RunAdventuring()
         g_SF.ToggleAutoProgress(1, false)
         if (NMA_FireUlts)
             g_NMAlvlObj.NMA_UseUltimates(favoriteFormation)
-        g_NMATimeAtWall := A_TickCount - startTime
+        g_NMATimeAtWall := IC_NMA_Functions.GetTickCount() - startTime
         if (g_SF.Memory.ReadHighestZone() > g_NMAHighestZone)
         {
-            startTime := A_TickCount
+            startTime := IC_NMA_Functions.GetTickCount()
             g_NMATimeAtWall := 0
             g_NMAHighestZone := g_SF.Memory.ReadHighestZone()
         }
@@ -198,7 +198,7 @@ NMA_RunAdventuring()
         isReset := g_NMAlvlObj.NMA_CheckForReset()
         if (isReset)
         {
-            startTime := A_TickCount
+            startTime := IC_NMA_Functions.GetTickCount()
             g_NMATimeAtWall := 0
             g_NMAHighestZone := 1
             g_NMAWallTime := NMA_WallTimer
