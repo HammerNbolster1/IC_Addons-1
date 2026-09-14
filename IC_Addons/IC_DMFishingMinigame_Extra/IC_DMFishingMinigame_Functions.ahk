@@ -10,6 +10,95 @@ class IC_DMFishingMinigame_Functions
 	TickFrequency := -1
 	PreviousInstanceId := ""
 
+	CheckInstanceId()
+	{
+		currInstanceId := g_SF.Memory.ReadInstanceID()
+		if (this.PreviousInstanceId == "" || currInstanceId == "" || this.PreviousInstanceId != currInstanceId)
+		{
+        	g_SF.Memory.OpenProcessReader()
+			this.PreviousInstanceId := g_SF.Memory.ReadInstanceID()
+		}
+
+		madeNewMemObj := false
+        if (!IsObject(g_SF.Memory.GameManager.game.gameInstances.StatHandler.DSpec1SlotId)) {
+            g_SF.Memory.GameManager.game.gameInstances.StatHandler.DSpec1SlotId := New GameObjectStructure(g_SF.Memory.GameManager.game.gameInstances.StatHandler,"Int", [0x280])
+			madeNewMemObj := true
+        }
+
+		if (!IsObject(g_SF.Memory.game.gameInstances.ActiveCampaignData.currentRules.ForceUseHeroesInfo.heroIds)) {
+			g_SF.Memory.GameManager.game.gameInstances.ActiveCampaignData.currentRules.ForceUseHeroesInfo := New GameObjectStructure(g_SF.Memory.GameManager.game.gameInstances.ActiveCampaignData.currentRules,"Int", [0x120])
+			g_SF.Memory.GameManager.game.gameInstances.ActiveCampaignData.currentRules.ForceUseHeroesInfo.heroIds := New GameObjectStructure(g_SF.Memory.GameManager.game.gameInstances.ActiveCampaignData.currentRules.ForceUseHeroesInfo,"List", [0x38])
+			g_SF.Memory.GameManager.game.gameInstances.ActiveCampaignData.currentRules.ForceUseHeroesInfo.heroIds._CollectionValType := "System.Int32"
+			madeNewMemObj := true
+		}
+		if (madeNewMemObj)
+            g_SF.Memory.GameManager.game.gameInstances.ResetCollections()
+	}
+
+	DeterminePossibleSeats()
+	{
+		local ahp, forcedSeats, size, i, heroId, seat, owned, allowed
+		local ownedBySeat := {}
+		local availableBySeat := {}
+		local possibleSeats := {}
+		local hasUnavailableSeat := false
+		
+		this.CheckInstanceId()
+
+		ahp := g_SF.Memory.GameManager.game.gameInstances[g_SF.Memory.GameInstance].HeroHandler.allowHeroPurchase.QuickClone()
+		forcedSeats := this.ReadVariantForcedChampionIds()
+		size := ahp.size.Read()
+		if (!IC_DMFishingMinigame_Component.IsNumber(size) || size < 0 || size > 5000)
+			return
+		
+		loop, 12
+		{
+			possibleSeats[A_Index] := false
+			if (A_Index == 6)
+				continue
+			ownedBySeat[A_Index] := 0
+			availableBySeat[A_Index] := 0
+		}
+		loop, %size%
+		{
+			i := A_Index - 1
+			heroId := ahp["key", i].Read()
+			seat := g_SF.Memory.ReadChampSeatByID(heroId)
+			if (seat == 6)
+				continue
+			owned := g_SF.Memory.ReadHeroIsOwned(heroId)
+			if (!owned)
+				continue
+			allowed := ahp["value", i].Read()
+			ownedBySeat[seat]++
+			if (allowed)
+				availableBySeat[seat]++
+		}
+
+		hasUnavailableSeat := false
+		loop, 12
+		{
+			if (A_Index == 6 || forcedSeats[A_Index])
+				continue
+			if (availableBySeat[A_Index] == 0)
+				hasUnavailableSeat := true
+		}
+
+		loop, 12
+		{
+			if (A_Index == 6)
+				continue
+			seat := A_Index
+			if (forcedSeats[seat])
+				possibleSeats[seat] := false
+			else if (hasUnavailableSeat)
+				possibleSeats[seat] := availableBySeat[seat] == 0
+			else
+				possibleSeats[seat] := availableBySeat[seat] < ownedBySeat[seat]
+		}
+		return possibleSeats
+	}
+
     ReadDMSpecialGuest(DMFM_status := "Reading DM's seat.", DMFM_timeout := 5000)
     {
 		local currSeat, startTime, elapsed
@@ -19,17 +108,7 @@ class IC_DMFishingMinigame_Functions
 
 		IC_DMFishingMinigame_Component.UpdateMainStatus(DMFM_status)
 		
-		currInstanceId := g_SF.Memory.ReadInstanceID()
-		if (this.PreviousInstanceId == "" || currInstanceId == "" || this.PreviousInstanceId != currInstanceId)
-		{
-        	g_SF.Memory.OpenProcessReader()
-			this.PreviousInstanceId := g_SF.Memory.ReadInstanceID()
-		}
-
-        if (!IsObject(g_SF.Memory.GameManager.game.gameInstances.StatHandler.DSpec1SlotId)) {
-            g_SF.Memory.GameManager.game.gameInstances.StatHandler.DSpec1SlotId := New GameObjectStructure(g_SF.Memory.GameManager.game.gameInstances.StatHandler,"Int", [0x280])
-            g_SF.Memory.GameManager.game.gameInstances.ResetCollections()
-        }
+		this.CheckInstanceId()
 
 		startTime := this.GetTickCount()
 		elapsed := 0
@@ -41,13 +120,33 @@ class IC_DMFishingMinigame_Functions
 				return currSeat
 			}
 			IC_DMFishingMinigame_Component.UpdateMainStatus(DMFM_status . " Timeout: " . Round((DMFM_timeout - elapsed)/1000, 3) . "s.")
-			Sleep, 100
+			Sleep, 50
 			elapsed := this.GetTickCount() - startTime
 			if (elapsed >= DMFM_timeout)
 				break
 		}
         return currSeat
     }
+
+	ReadVariantForcedChampionIds()
+	{
+		local forcedSeats := {}
+		local size := g_SF.Memory.GameManager.game.gameInstances[g_SF.Memory.GameInstance].ActiveCampaignData.currentRules.ForceUseHeroesInfo.heroIds.size.Read()
+		local currInd, heroId, seat
+		loop, 12
+			forcedSeats[A_Index] := false
+
+		loop, %size%
+		{
+			currInd := A_Index - 1
+			heroId := g_SF.Memory.GameManager.game.gameInstances[g_SF.Memory.GameInstance].ActiveCampaignData.currentRules.ForceUseHeroesInfo.heroIds[currInd].Read()
+			seat := g_SF.Memory.ReadChampSeatByID(heroId)
+			if (seat == 6)
+				continue
+			forcedSeats[seat] := true
+		}
+		return forcedSeats
+	}
 
 	; =======================================
 	; ===== RESTART ADVENTURE FUNCTIONS =====

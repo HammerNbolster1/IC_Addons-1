@@ -19,6 +19,7 @@ class IC_DMFishingMinigame_Component
 	Settings := {}
 	
 	SanityCheckedCustom := false
+	PossibleSeats := {}
 	CurrSeat := 0
 	TotalResets := 0
 
@@ -38,6 +39,35 @@ class IC_DMFishingMinigame_Component
 		{
         	g_SF.Memory.OpenProcessReader()
 			this.PreviousInstanceId := g_SF.Memory.ReadInstanceID()
+		}
+
+		this.PossibleSeats := IC_DMFishingMinigame_Functions.DeterminePossibleSeats()
+		if (this.PossibleSeats == "")
+		{
+			this.UpdateMainStatus("Couldn't read which seats DM can choose. Stopping.")
+			this.StopFishing()
+			return
+		}
+		this.UpdateGUI()
+
+		anAcceptableIsPossible := false
+		for k,v in this.PossibleSeats
+		{
+			if (this.Settings["S"+k] == true && v == true)
+			{
+				anAcceptableIsPossible := true
+				break
+			}
+		}
+		if (!anAcceptableIsPossible)
+		{
+			MsgBox, 0x124, Potentially No Possible Acceptable Seats, It appears that none of the seats you have marked as acceptable are possible for DM to pull.`n`nBe aware that the script can get this wrong.`n`nDo you wish to fish anyway?
+			IfMsgBox No
+			{
+				this.UpdateMainStatus("None of the seats you have set as acceptable are possible. Stopping.")
+				this.StopFishing()
+				return
+			}
 		}
 
 		this.TotalResets := 0
@@ -98,7 +128,7 @@ class IC_DMFishingMinigame_Component
 			Sleep, 100
 		}
 		this.UpdateMainStatus("Stopped.")
-		this.ToggleAllSettingsUI("Enable")
+		this.StopFishing()
 	}
 	
 	IsNumber(inputText)
@@ -115,6 +145,7 @@ class IC_DMFishingMinigame_Component
 	Init()
 	{
 		this.LoadSettings()
+		this.PossibleSeats := IC_DMFishingMinigame_Functions.DeterminePossibleSeats()
 		this.CurrSeat := IC_DMFishingMinigame_Functions.ReadDMSpecialGuest()
 		this.TotalResets := 0
 		this.UpdateGUI()
@@ -284,22 +315,42 @@ class IC_DMFishingMinigame_Component
 	{
 		GuiControl, ICScriptHub:, DMFM_CurrSeat, % this.CurrSeat == "" ? "Can't read memory." : this.CurrSeat == "0" ? "Special Guest Star not available." : this.CurrSeat
 		GuiControl, ICScriptHub:, DMFM_NumResets, % this.TotalResets
+
+		this.ToggleBetweenRunningStates()
+		this.UpdateImpossibleSeatGUI()
 	}
 
-	ToggleAllSettingsUI(dmfm_enableType)
+	ToggleBetweenRunningStates()
 	{
-		GuiControl, ICScriptHub:%dmfm_enableType%, DMFM_CoordMode
-		for k,v in ["Complete", "Skip", "Restart"]
+		for k,v in g_DMFishingMinigameGUI.disableWhileRunningControls
+			if (this.Running)
+				v.Disable()
+			else
+				v.Enable()
+		for k,v in g_DMFishingMinigameGUI.disableWhileNotRunningControls
+			if (this.Running)
+				v.Enable()
+			else
+				v.Disable()
+	}
+
+	UpdateImpossibleSeatGUI()
+	{
+		impossBlurb := ""
+		impossAdded := 0
+		for k,v in this.PossibleSeats
 		{
-			GuiControl, ICScriptHub:%dmfm_enableType%, DMFM_%v%CoordsX
-			GuiControl, ICScriptHub:%dmfm_enableType%, DMFM_%v%CoordsY
+			if (k == 6)
+				continue
+			GuiControl, ICScriptHub:, DMFM_Seat%A_Index%Imp, % v ? "" : "x"
+			if (v == false)
+			{
+				impossBlurb .= impossBlurb == "" ? k : ", " k
+				impossAdded++
+			}
 		}
-		loop, 12
-		{
-			if (A_Index == 6)
-				Continue
-			GuiControl, ICScriptHub:%dmfm_enableType%, DMFM_Seat%A_Index%
-		}
+		GuiControl, ICScriptHub:, DMFM_SeatB, % impossAdded == 0 ? "None" : impossBlurb
+		GuiControl, ICScriptHub:, DMFM_SeatBH, % "Impossible Seat" (impossAdded!=1 ? "s" : "") ":"
 	}
 
 	SetCoordModeUI()
@@ -358,20 +409,6 @@ class IC_DMFishingMinigame_Component
 		g_DMFishingMinigameGUI.currentCoordMode := cMode
 	}
 
-	ToggleUIBetweenRunningStates()
-	{
-		for k,v in g_DMFishingMinigameGUI.disableWhileRunningControls
-			if (this.Running)
-				v.Disable()
-			else
-				v.Enable()
-		for k,v in g_DMFishingMinigameGUI.disableWhileNotRunningControls
-			if (this.Running)
-				v.Enable()
-			else
-				v.Disable()
-	}
-	
 	; =========================
 	; ===== RUNNING STUFF =====
 	; =========================
@@ -382,16 +419,14 @@ class IC_DMFishingMinigame_Component
 		this.SaveSettings()
 		this.Running := true
 		this.SanityCheckedCustom := false
-		this.ToggleAllSettingsUI("Disable")
-		this.ToggleUIBetweenRunningStates("Disable", "Enable")
+		this.UpdateGUI()
 		this.DMFishingMinigame()
 	}
 	
 	StopFishing()
 	{
 		this.Running := false
-		this.ToggleAllSettingsUI("Enable")
-		this.ToggleUIBetweenRunningStates("Enable", "Disable")
+		this.UpdateGUI()
 	}
 	
 	GetTickCount()

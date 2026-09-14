@@ -36,20 +36,26 @@ DMFM_StopFishing()
 
 DMFM_ReadNow()
 {
+	g_DMFishingMinigame.PossibleSeats := IC_DMFishingMinigame_Functions.DeterminePossibleSeats()
 	g_DMFishingMinigame.CurrSeat := IC_DMFishingMinigame_Functions.ReadDMSpecialGuest()
 	g_DMFishingMinigame.UpdateGUI()
 }
 
 DMFM_TestButton()
 {
-	; Do nothing.
+    msglog := A_LineFile . "\..\logTheStuff.txt"
+	msgmsg := ""
+
+	file := FileOpen(msglog, "w")
+	file.write(msgmsg)
+	file.close()
 }
 
 class IC_DMFishingMinigame_GUI
 {
 	static InitMessage := "Initialising..."
 	static ReadyMessage := "Ready to start fishing."
-	static gboxhSettings := [95, 188]
+	static gboxhSettings := [125, 220]
 
 	disableWhileRunningControls := []
 	disableWhileNotRunningControls := []
@@ -98,12 +104,17 @@ class IC_DMFishingMinigame_GUI
 			if (A_Index == 6)
 				continue
 			xPos := 13 + ((seatCounter - 1) * 42)
-			this.AddControl("DMFM_Seat" A_Index "H", "Text", "xs" xPos " ys+" cbY " w23 +Right", A_Index ":")
+			ctrlSeatH := this.AddControl("DMFM_Seat" A_Index "H", "Text", "xs" xPos " ys+" cbY " w23 +Right", A_Index ":")
 			xPos += 25
-			ctrlSeatCb := this.AddControl("DMFM_Seat" A_Index, "Checkbox", "xs" xPos " ys" cbY)
+			ctrlSeatCb := this.AddControl("DMFM_Seat" A_Index, "Checkbox", "xs" xPos " ys" cbY " w" DMFM_lineHeight " h" DMFM_lineHeight)
+			this.AddControl("DMFM_Seat" A_Index "Imp", "Text", "xs" xPos " y+0 w9 +Right")
 			this.disableWhileRunningControls.Push(ctrlSeatCb)
+			this.disableWhileRunningControls.Push(ctrlSeatH)
 			seatCounter++
 		}
+		impossSeatDiff := DMFM_lineDiff + 2
+		this.AddControl("DMFM_SeatBH", "Text", "xs15 y+" impossSeatDiff " w" DMFM_col1w " +Right", "Impossible Seats:")
+		this.AddControl("DMFM_SeatB", "Text", "xs" DMFM_col2x " y+-" DMFM_lineHeight " w" DMFM_col2w)
 
 		this.AddControl("DMFM_CoordModeH", "Text", "xs10 y+" DMFM_initLineDiff " w95 +Right", "Mouse Coordinates:")
 		GuiControlGet, pos, ICScriptHub:Pos, DMFM_CoordModeH
